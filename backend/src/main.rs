@@ -1,9 +1,7 @@
 use axum::{Router, routing::get, body::Body, response::Response, http::{StatusCode, header}};
-use std::net::SocketAddr;
-use tokio::{net::TcpListener, fs::File};
+use std::{net::SocketAddr, env};
+use tokio::fs::File;
 use tokio_util::io::ReaderStream;
-
-const PORT: u16 = 3000;
 
 async fn get_video(path: &str) -> Result<Response, StatusCode> {
     // Open the file
@@ -35,20 +33,22 @@ async fn get_video(path: &str) -> Result<Response, StatusCode> {
 
 #[tokio::main(flavor="current_thread")]
 async fn main() {
-    println!("Microservice listening on port {PORT}, point your browser at http://localhost:{PORT}/video");
+    let port = "PORT";
 
-    let video_router: Router<_> = Router::new().route("/video", get( ||get_video("..videos/file_example_MP4_640_3MG.mp4")));
+    // Check for env for port number
+    let port: u16 = match env::var(port) {
+        Ok(val) => val.parse::<u16>().unwrap(),
+        Err(e) => panic!("Error {}: {}", port, e)
+    };
+    println!("Microservice listening on port {port}, point your browser at http://localhost:{port}/video");
 
-    let addr = SocketAddr::from(([127,0,0,1], PORT));
+    let video_router: Router<_> = Router::new().route("/video", get( || async { get_video("../videos/file_example_MP4_640_3MG.mp4").await }));
 
-    let tcp = TcpListener::bind(&addr)
-                        .await
-                        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
-                        .unwrap();
+    let addr = SocketAddr::from(([127,0,0,1], port));
 
-    axum::serve(tcp, video_router)
-                .await
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
-                .unwrap();
+    axum_server::bind(addr)
+        .serve(video_router.into_make_service())
+        .await
+        .unwrap();
 }
 
