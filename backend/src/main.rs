@@ -44,7 +44,7 @@ async fn main() {
 
     let video_router: Router<_> = Router::new().route("/video", get( || async { get_video("./videos/file_example_MP4_640_3MG.mp4").await }));
 
-    let addr = SocketAddr::from(([127,0,0,1], port));
+    let addr = SocketAddr::from(([0,0,0,0], port));
 
     axum_server::bind(addr)
         .serve(video_router.into_make_service())

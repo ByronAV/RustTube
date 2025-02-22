@@ -6,4 +6,4 @@ COPY ./src ./src
 COPY ./videos ./videos
 RUN cargo build --release
 
-CMD cargo run
+CMD ["cargo", "run", "--release"]
