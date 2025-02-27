@@ -1,0 +1,12 @@
+services:
+  backend:
+    image: video-streaming-backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: video-streaming-backend
+    ports:
+      - "4000:80"
+    environment:
+      - PORT=80
+    restart: "no"
