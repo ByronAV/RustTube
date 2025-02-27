@@ -33,7 +33,7 @@ fn get_storage_access_key() -> &'static str {
 }
 
 
-#[actix_web::main]
+#[tokio::main(flavor="current_thread")]
 async fn main() -> io::Result<()> {
     println!("Serving videos from Azure storage account {}", get_storage_account_name());
 

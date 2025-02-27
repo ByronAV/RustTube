@@ -95,7 +95,6 @@ version = "2.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "24eda4e2a6e042aa4e55ac438a2ae052d3b5da0ecf83d7411e1a368946925208"
 dependencies = [
- "actix-macros",
  "futures-core",
  "tokio",
 ]
@@ -1915,11 +1914,11 @@ checksum = "a8f112729512f8e442d81f95a8a7ddf2b7c6b8a1a6f509a95864142b30cab2d3"
 name = "storage"
 version = "0.1.0"
 dependencies = [
- "actix-rt",
  "actix-web",
  "azure_storage",
  "azure_storage_blobs",
  "serde",
+ "tokio",
 ]
 
 [[package]]
@@ -2049,7 +2048,19 @@ dependencies = [
  "pin-project-lite",
  "signal-hook-registry",
  "socket2",
+ "tokio-macros",
  "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "tokio-macros"
+version = "2.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6e06d43f1345a3bcd39f6a56dbb7dcab2ba47e68e8ac134855e7e2bdbaf8cab8"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
