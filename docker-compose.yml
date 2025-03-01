@@ -1,4 +1,18 @@
 services:
+  storage:
+    image: storage
+    build:
+      context: ./storage
+      dockerfile: Dockerfile
+    container_name: video-streaming-storage
+    ports:
+      - "4000:80"
+    environment:
+      - PORT=80
+      - STORAGE_ACCOUNT_NAME=${STORAGE_ACCOUNT_NAME}
+      - STORAGE_ACCESS_KEY=${STORAGE_ACCESS_KEY}
+    restart: "no"
+
   backend:
     image: video-streaming-backend
     build:
@@ -6,7 +20,9 @@ services:
       dockerfile: Dockerfile
     container_name: video-streaming-backend
     ports:
-      - "4000:80"
+      - "4001:80"
     environment:
       - PORT=80
+      - VIDEO_STORAGE_HOST=video-streaming-storage
+      - VIDEO_STORAGE_PORT=80
     restart: "no"

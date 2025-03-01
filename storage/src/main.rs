@@ -5,6 +5,7 @@ use actix_web::{App, HttpServer};
 
 mod api;
 
+// We're retrieving the necessary env vars before beginning the service
 static PORT: OnceLock<u16> = OnceLock::new();
 static STORAGE_ACCOUNT_NAME : OnceLock<String> = OnceLock::new();
 static STORAGE_ACCESS_KEY: OnceLock<String> = OnceLock::new();

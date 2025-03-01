@@ -1,54 +1,83 @@
-use axum::{Router, routing::get, body::Body, response::Response, http::{StatusCode, header}};
-use std::{net::SocketAddr, env};
-use tokio::fs::File;
-use tokio_util::io::ReaderStream;
+use std::{env, io, sync::OnceLock};
+use actix_web::{get, HttpRequest, HttpResponse, App, HttpServer};
+use awc::Client;
+use futures::{TryStreamExt, StreamExt};
 
-async fn get_video(path: &str) -> Result<Response, StatusCode> {
-    // Open the file
-    let file = File::open(path)
-            .await
-            .map_err(|_| StatusCode::NOT_FOUND)?;
+// We're retrieving the necessary env vars before beginning the service
+static PORT: OnceLock<u16> = OnceLock::new();
+static VIDEO_STORAGE_HOST : OnceLock<String> = OnceLock::new();
+static VIDEO_STORAGE_PORT: OnceLock<u16> = OnceLock::new();
 
-    // Get file metadata
-    let metadata = file.metadata()
-                .await
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+fn get_port() -> u16 {
+    *PORT.get_or_init(|| {
+        env::var("PORT")
+            .ok()
+            .and_then(|val| val.parse::<u16>().ok())
+            .expect("Please specify the port number for the HTTP server with the environment variable PORT.")
+    })
+}
 
-    let content_type = "video/mp4";
+fn get_video_storage_host() -> &'static str {
+    VIDEO_STORAGE_HOST.get_or_init(|| {
+        env::var("VIDEO_STORAGE_HOST")
+            .expect("Please specify the host name for the video storage microservice in variable VIDEO_STORAGE_HOST.")
+    }).as_str()
+}
 
-    // Create stream
-    let stream = ReaderStream::new(file);
-    let body = Body::from_stream(stream);
+fn get_video_storage_port() -> u16 {
+    *VIDEO_STORAGE_PORT.get_or_init(|| {
+        env::var("VIDEO_STORAGE_PORT")
+            .ok()
+            .and_then(|val| val.parse::<u16>().ok())
+            .expect("Please specify the port number for the video storage microservice in variable VIDEO_STORAGE_PORT.")
+    })
+}
+#[get("/video")]
+async fn get_video(req: HttpRequest) -> HttpResponse {
+    let client = Client::default();
 
-    let res = Response::builder()
-                        .status(StatusCode::OK)
-                        .header(header::CONTENT_TYPE, content_type)
-                        .header(header::CONTENT_LENGTH, metadata.len())
-                        .body(body)
-                        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    // This is the URL for the video storage microservice
+    let target_url = format!("http://{}:{}/video?file_example_MP4_640_3MG.mp4", get_video_storage_host(), get_video_storage_port());
 
-    Ok(res)
+    // Create new request for the video storage
+    let mut forward_request = client.get(target_url);
+
+    // Copy the headers of the original request
+    for (key, value) in req.headers().iter() {
+        forward_request = forward_request.insert_header((key.clone(), value.clone()));
+    }
+
+    // Send the request to video storage and handle response
+    match forward_request.send().await {
+        Ok(res) => {
+            let mut client_resp = HttpResponse::build(res.status());
+
+            // Copy headers from forwarded message
+            for header in res.headers() {
+                client_resp.append_header(header);
+            }
+
+            // Stream the response body
+            client_resp.streaming(res.into_stream().map(|result| {
+                result.map_err(|_| actix_web::error::ErrorInternalServerError("Error streaming video"))
+            }))
+        },
+        Err(_) => HttpResponse::InternalServerError().body("Failed to connect to video service.")
+    }
 
 }
 
 #[tokio::main(flavor="current_thread")]
-async fn main() {
-    let port = "PORT";
+async fn main() -> io::Result<()> {
+    println!("Forwarding video requests to {}:{}", get_video_storage_host(), get_video_storage_port());
 
-    // Check for env for port number
-    let port: u16 = match env::var(port) {
-        Ok(val) => val.parse::<u16>().unwrap(),
-        Err(e) => panic!("Error {}: {}", port, e)
-    };
-    println!("Microservice listening on port {port}, point your browser at http://localhost:{port}/video");
-
-    let video_router: Router<_> = Router::new().route("/video", get( || async { get_video("./videos/file_example_MP4_640_3MG.mp4").await }));
-
-    let addr = SocketAddr::from(([0,0,0,0], port));
-
-    axum_server::bind(addr)
-        .serve(video_router.into_make_service())
-        .await
-        .unwrap();
+    HttpServer::new(|| {
+        println!("Microservice online.");
+        App::new()
+            .service(get_video)
+    })
+    .bind(format!("0.0.0.0:{}", get_port()))?
+    .run()
+    .await
 }
 
