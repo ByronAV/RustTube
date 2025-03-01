@@ -2,22 +2,18 @@
 
 use azure_storage::prelude::*;
 use azure_storage_blobs::prelude::*;
-use serde::Deserialize;
-use actix_web::{get, http::{header::ContentLength, StatusCode}, web, HttpRequest, HttpResponse};
-
-#[derive(Debug, Deserialize)]
-pub struct QueryParams {
-    path: String
-}
+use actix_web::{get, http::header, HttpRequest, HttpResponse};
 
 #[get("/video")]
 pub async fn get_video(req: HttpRequest) -> HttpResponse {
-    let video_path: &str = &web::Query::<QueryParams>::from_query(req.query_string()).unwrap().path;
-    // In case this is empty, return response (why no semicolon here ??)
-    if video_path.is_empty() {
-        eprintln!("The video path is empty");
-        return HttpResponse::new(StatusCode::NOT_FOUND);
-    }
+    let video_path = match req.uri().query() {
+        Some(query) => query,
+        None => {
+            eprintln!("The video path was not found");
+            return HttpResponse::NotFound().finish()
+        }
+    };
+
     println!("Streaming video from path {video_path}");
 
     let blob_service = create_blob_service(crate::get_storage_account_name(), crate::get_storage_access_key());
@@ -33,7 +29,7 @@ pub async fn get_video(req: HttpRequest) -> HttpResponse {
 
             // Return the content as HTTP response
             return HttpResponse::Ok()
-                        .insert_header(ContentLength(content_length))
+                        .insert_header(header::ContentLength(content_length))
                         .content_type(content_type)
                         .body(content)
         }
