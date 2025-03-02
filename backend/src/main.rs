@@ -1,12 +1,14 @@
 use std::{env, io, sync::OnceLock};
-use actix_web::{get, HttpRequest, HttpResponse, App, HttpServer};
-use awc::Client;
-use futures::{TryStreamExt, StreamExt};
+use actix_web::{App, HttpServer};
+
+mod api;
 
 // We're retrieving the necessary env vars before beginning the service
 static PORT: OnceLock<u16> = OnceLock::new();
 static VIDEO_STORAGE_HOST : OnceLock<String> = OnceLock::new();
 static VIDEO_STORAGE_PORT: OnceLock<u16> = OnceLock::new();
+static DBHOST: OnceLock<String> = OnceLock::new();
+static DBNAME: OnceLock<String> = OnceLock::new();
 
 fn get_port() -> u16 {
     *PORT.get_or_init(|| {
@@ -32,39 +34,19 @@ fn get_video_storage_port() -> u16 {
             .expect("Please specify the port number for the video storage microservice in variable VIDEO_STORAGE_PORT.")
     })
 }
-#[get("/video")]
-async fn get_video(req: HttpRequest) -> HttpResponse {
-    let client = Client::default();
 
-    // This is the URL for the video storage microservice
-    let target_url = format!("http://{}:{}/video?file_example_MP4_640_3MG.mp4", get_video_storage_host(), get_video_storage_port());
+fn get_db_host() -> &'static str {
+    DBHOST.get_or_init(|| {
+        env::var("DBHOST")
+            .expect("Please specify the variable for the database host in variable DBHOST.")
+    }).as_str()
+}
 
-    // Create new request for the video storage
-    let mut forward_request = client.get(target_url);
-
-    // Copy the headers of the original request
-    for (key, value) in req.headers().iter() {
-        forward_request = forward_request.insert_header((key.clone(), value.clone()));
-    }
-
-    // Send the request to video storage and handle response
-    match forward_request.send().await {
-        Ok(res) => {
-            let mut client_resp = HttpResponse::build(res.status());
-
-            // Copy headers from forwarded message
-            for header in res.headers() {
-                client_resp.append_header(header);
-            }
-
-            // Stream the response body
-            client_resp.streaming(res.into_stream().map(|result| {
-                result.map_err(|_| actix_web::error::ErrorInternalServerError("Error streaming video"))
-            }))
-        },
-        Err(_) => HttpResponse::InternalServerError().body("Failed to connect to video service.")
-    }
-
+fn get_db_name() -> &'static str {
+    DBNAME.get_or_init(|| {
+        env::var("DBNAME")
+            .expect("Please specify the variable for the database name in variable DBNAME.")
+    }).as_str()
 }
 
 #[tokio::main(flavor="current_thread")]
@@ -72,9 +54,9 @@ async fn main() -> io::Result<()> {
     println!("Forwarding video requests to {}:{}", get_video_storage_host(), get_video_storage_port());
 
     HttpServer::new(|| {
-        println!("Microservice online.");
+        println!("Backend online.");
         App::new()
-            .service(get_video)
+            .service(api::get_video)
     })
     .bind(format!("0.0.0.0:{}", get_port()))?
     .run()

@@ -7,4 +7,6 @@ edition = "2021"
 actix-web = "4.9.0"
 awc = "3.5.1"
 futures = "0.3.31"
+mongodb = "3.2.1"
+serde = "1.0.218"
 tokio = { version = "1.43.0", features = ["rt-multi-thread", "macros"]}

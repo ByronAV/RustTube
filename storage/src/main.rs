@@ -39,7 +39,7 @@ async fn main() -> io::Result<()> {
     println!("Serving videos from Azure storage account {}", get_storage_account_name());
 
     HttpServer::new(|| {
-        println!("Microservice Online.");
+        println!("Storage Online.");
         App::new()
             .service(api::get_video)
         })
