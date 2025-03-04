@@ -1,25 +1,28 @@
 use actix_web::{get, HttpRequest, HttpResponse};
 use futures::{TryStreamExt, StreamExt};
-use mongodb::{ bson::{doc, Uuid}, options::{ ClientOptions, ServerApi, ServerApiVersion }};
+use mongodb::{ bson::{doc, oid::ObjectId}, options::{ ClientOptions, ServerApi, ServerApiVersion }};
 use serde::{Serialize, Deserialize};
 
 #[derive(Serialize, Deserialize)]
 struct Video {
-    _id: Uuid,
+    _id: ObjectId,
     video_path: String
 }
 
 #[get("/video")]
 async fn get_video(req: HttpRequest) -> HttpResponse {
+    // Connect to the DB
     let db_client = match connect_to_db().await {
         Ok(db) => db,
         Err(_) => return HttpResponse::InternalServerError().finish()
     };
 
+    // Retrieve the DB and fetch the `videos` collection
     let db = db_client.database(crate::get_db_name());
     // This collection contains path to videos, so `String` arguments
     let videos_collection= db.collection::<Video>("videos");
 
+    // The URI query part should contain the ID of the video
     let video_record = match get_video_record(&videos_collection, &req.uri().query()).await {
         Ok(record) => record,
         Err(_) => return HttpResponse::NotFound().finish()
@@ -30,7 +33,7 @@ async fn get_video(req: HttpRequest) -> HttpResponse {
     let client = awc::Client::default();
 
     // This is the URL for the video storage microservice
-    let target_url = format!("http://{}:{}/{}", crate::get_video_storage_host(), crate::get_video_storage_port(), video_record.video_path);
+    let target_url = format!("http://{}:{}/video?{}", crate::get_video_storage_host(), crate::get_video_storage_port(), video_record.video_path);
 
     // Create new request for the video storage
     let mut forward_request = client.get(target_url);
@@ -49,7 +52,6 @@ async fn get_video(req: HttpRequest) -> HttpResponse {
             for header in res.headers() {
                 client_resp.append_header(header);
             }
-
             // Stream the response body
             client_resp.streaming(res.into_stream().map(|result| {
                 result.map_err(|_| actix_web::error::ErrorInternalServerError("Error streaming video"))
@@ -82,7 +84,7 @@ async fn connect_to_db() -> Result<mongodb::Client, HttpResponse> {
 async fn get_video_record(collection: &mongodb::Collection<Video>, query_str: &Option<&str>) -> Result<Video, HttpResponse> {
     // Craft the video id from the URI query
     let video_id = match query_str {
-        Some(s) => match Uuid::parse_str(s) {
+        Some(s) => match ObjectId::parse_str(s) {
             Ok(id) => id,
             Err(_) => return Err(HttpResponse::InternalServerError().finish())
         },
