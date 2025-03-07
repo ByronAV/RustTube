@@ -3,6 +3,8 @@ use futures::{TryStreamExt, StreamExt};
 use mongodb::{ bson::{doc, oid::ObjectId}, options::{ ClientOptions, ServerApi, ServerApiVersion }};
 use serde::{Serialize, Deserialize};
 
+use crate::get_history_port;
+
 #[derive(Serialize, Deserialize)]
 struct Video {
     _id: ObjectId,
@@ -30,7 +32,7 @@ async fn get_video(req: HttpRequest) -> HttpResponse {
 
     println!("Translated id {} to path {}", req.uri().query().unwrap(), video_record.video_path);
 
-    let client = awc::Client::default();
+    let mut client = awc::Client::default();
 
     // This is the URL for the video storage microservice
     let target_url = format!("http://{}:{}/video?{}", crate::get_video_storage_host(), crate::get_video_storage_port(), video_record.video_path);
@@ -52,6 +54,11 @@ async fn get_video(req: HttpRequest) -> HttpResponse {
             for header in res.headers() {
                 client_resp.append_header(header);
             }
+
+            match send_viewed_message(&mut client, &video_record.video_path).await {
+                Ok(_) => println!("Sent `viewed` message to history microservice."),
+                Err(_) => eprintln!("Failed to send `viewed` message.")
+            };
             // Stream the response body
             client_resp.streaming(res.into_stream().map(|result| {
                 result.map_err(|_| actix_web::error::ErrorInternalServerError("Error streaming video"))
@@ -101,4 +108,23 @@ async fn get_video_record(collection: &mongodb::Collection<Video>, query_str: &O
     };
 
     Ok(video_record)
+}
+
+async fn send_viewed_message(client: &mut awc::Client, video_path: &str) -> Result<(), awc::error::SendRequestError> {
+
+    // We are sending a POST request to the history MS
+    // in order to mark the video as viewed. We need
+    // a json file that contains the video path and 
+    // the content-type header
+
+    let req = serde_json::json!({
+        "video_path": video_path
+    });
+
+    client.post(format!("http://history:{}/viewed", get_history_port()))
+                .insert_header(("Content-Type", "application/json"))
+                .send_json(&req)
+                .await?;
+
+    Ok(())
 }

@@ -5,6 +5,7 @@ mod api;
 
 // We're retrieving the necessary env vars before beginning the service
 static PORT: OnceLock<u16> = OnceLock::new();
+static HISTORY_PORT: OnceLock<u16> = OnceLock::new();
 static VIDEO_STORAGE_HOST : OnceLock<String> = OnceLock::new();
 static VIDEO_STORAGE_PORT: OnceLock<u16> = OnceLock::new();
 static DBHOST: OnceLock<String> = OnceLock::new();
@@ -18,6 +19,16 @@ fn get_port() -> u16 {
             .expect("Please specify the port number for the HTTP server with the environment variable PORT.")
     })
 }
+
+fn get_history_port() -> u16 {
+    *HISTORY_PORT.get_or_init(|| {
+        env::var("HISTORY_PORT")
+            .ok()
+            .and_then(|val| val.parse::<u16>().ok())
+            .expect("Please specify the port number for the HTTP server with the environment variable HISTORY_PORT.")
+    })
+}
+
 
 fn get_video_storage_host() -> &'static str {
     VIDEO_STORAGE_HOST.get_or_init(|| {

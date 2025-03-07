@@ -1,5 +1,5 @@
 [package]
-name = "backend"
+name = "history"
 version = "0.1.0"
 edition = "2021"
 
@@ -11,12 +11,9 @@ lto = "off"
 incremental = true
 lto = "fat"
 
-
 [dependencies]
 actix-web = "4.9.0"
-awc = "3.5.1"
-futures = "0.3.31"
-mongodb = "3.2.1"
+cargo-watch = "8.5.3"
+mongodb = "3.2.2"
 serde = "1.0.218"
-serde_json = "1.0.140"
 tokio = { version = "1.43.0", features = ["rt-multi-thread", "macros"]}

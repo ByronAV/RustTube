@@ -10,22 +10,27 @@ services:
     image: storage
     build:
       context: ./storage
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile-dev
     container_name: video-streaming-storage
+    volumes:
+      - ./storage:/usr/src/storage:z
     ports:
       - "4001:80"
     environment:
       - PORT=80
       - STORAGE_ACCOUNT_NAME=${STORAGE_ACCOUNT_NAME}
       - STORAGE_ACCESS_KEY=${STORAGE_ACCESS_KEY}
+      - NODE_ENV=development
     restart: "no"
 
   backend:
     image: video-streaming-backend
     build:
       context: ./backend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile-dev
     container_name: video-streaming-backend
+    volumes:
+      - ./backend:/usr/src/backend:z
     ports:
       - "4002:3000"
     environment:
@@ -34,4 +39,25 @@ services:
       - DBNAME=video-streaming
       - VIDEO_STORAGE_HOST=video-streaming-storage
       - VIDEO_STORAGE_PORT=80
+      - HISTORY_PORT=80
+      - NODE_ENV=development
+    restart: "no"
+
+  history:
+    image: history
+    build:
+      context: ./history
+      dockerfile: Dockerfile-dev
+    container_name: history
+    volumes:
+      - ./history:/usr/src/history:z
+    ports:
+      - "4003:80"
+    environment:
+      - PORT=80
+      - DBHOST=mongodb://db:27017
+      - DBNAME=history
+      - NODE_ENV=development
+    depends_on:
+      - db
     restart: "no"
