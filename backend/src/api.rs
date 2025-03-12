@@ -2,8 +2,9 @@ use actix_web::{get, HttpRequest, HttpResponse};
 use futures::{TryStreamExt, StreamExt};
 use mongodb::{ bson::{doc, oid::ObjectId}, options::{ ClientOptions, ServerApi, ServerApiVersion }};
 use serde::{Serialize, Deserialize};
+use lapin::{options::*, BasicProperties, Channel, Connection, ConnectionProperties};
 
-use crate::get_history_port;
+use crate::get_rabbit;
 
 #[derive(Serialize, Deserialize)]
 struct Video {
@@ -32,7 +33,7 @@ async fn get_video(req: HttpRequest) -> HttpResponse {
 
     println!("Translated id {} to path {}", req.uri().query().unwrap(), video_record.video_path);
 
-    let mut client = awc::Client::default();
+    let client = awc::Client::default();
 
     // This is the URL for the video storage microservice
     let target_url = format!("http://{}:{}/video?{}", crate::get_video_storage_host(), crate::get_video_storage_port(), video_record.video_path);
@@ -55,8 +56,8 @@ async fn get_video(req: HttpRequest) -> HttpResponse {
                 client_resp.append_header(header);
             }
 
-            match send_viewed_message(&mut client, &video_record.video_path).await {
-                Ok(_) => println!("Sent `viewed` message to history microservice."),
+            match send_viewed_message(&video_record.video_path).await {
+                Ok(_) => println!("Sent `viewed` message to history microservice queue."),
                 Err(_) => eprintln!("Failed to send `viewed` message.")
             };
             // Stream the response body
@@ -110,7 +111,22 @@ async fn get_video_record(collection: &mongodb::Collection<Video>, query_str: &O
     Ok(video_record)
 }
 
-async fn send_viewed_message(client: &mut awc::Client, video_path: &str) -> Result<(), awc::error::SendRequestError> {
+async fn connect_to_msg_channel() -> Result<Channel, lapin::Error> {
+
+    // Connect to RabbitMQ server
+    let addr = get_rabbit();
+    let conn = Connection::connect(
+        &addr,
+        ConnectionProperties::default(),
+    ).await?;
+
+    println!("Connected to RabbitMQ from Backend Microservice.");
+
+    // Create a channel
+    conn.create_channel().await
+}
+
+async fn send_viewed_message(video_path: &str) -> Result<(), lapin::Error> {
 
     // We are sending a POST request to the history MS
     // in order to mark the video as viewed. We need
@@ -121,10 +137,21 @@ async fn send_viewed_message(client: &mut awc::Client, video_path: &str) -> Resu
         "video_path": video_path
     });
 
-    client.post(format!("http://history:{}/viewed", get_history_port()))
-                .insert_header(("Content-Type", "application/json"))
-                .send_json(&req)
-                .await?;
+    println!("Publishing message on 'viewed' queue");
+
+    let msg_channel = match connect_to_msg_channel().await {
+        Ok(channel) => channel,
+        Err(e) => return Err(e)
+    };
+
+    msg_channel.basic_publish(
+        "",
+        "viewed",
+        BasicPublishOptions::default(),
+        &serde_json::to_vec(&req).expect("Failed to serialize Value json")[..],
+        BasicProperties::default()
+    ).await?
+     .await?;
 
     Ok(())
 }
