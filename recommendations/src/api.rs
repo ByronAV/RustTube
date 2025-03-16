@@ -1,5 +1,5 @@
-use actix_web::HttpResponse;
-use mongodb::{ bson::doc, options::{ ClientOptions, ServerApi, ServerApiVersion }};
+//use actix_web::HttpResponse;
+use mongodb::{ bson::doc/*, options::{ ClientOptions, ServerApi, ServerApiVersion }*/};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use lapin::{message::Delivery, options::*, types::FieldTable, Channel, Connection, ConnectionProperties, Consumer, ExchangeKind, Queue};
@@ -16,7 +16,7 @@ struct History {
 
 pub async fn connect_to_msg_channel() -> Result<Channel, lapin::Error> {
 
-    println!("Connecting to RabbitMQ from History Microservice at {} ...", get_rabbit());
+    println!("Connecting to RabbitMQ from Recommendations Microservice at {} ...", get_rabbit());
 
     // Connect to RabbitMQ server
     let addr = get_rabbit();
@@ -25,7 +25,7 @@ pub async fn connect_to_msg_channel() -> Result<Channel, lapin::Error> {
         ConnectionProperties::default(),
     ).await?;
 
-    println!("Connected to RabbitMQ from History Microservice.");
+    println!("Connected to RabbitMQ from Recommendations Microservice.");
 
     // Create a channel
     conn.create_channel().await
@@ -75,7 +75,7 @@ pub async fn create_and_bind_queue(msg_channel: &Channel, exchange_name: &str) -
     msg_channel.queue_bind(queue.name().as_str(), exchange_name, "", QueueBindOptions::default(), FieldTable::default()).await?;
 
     println!("Queue binding successful");
-    
+
     Ok(queue)
 }
 
@@ -123,23 +123,8 @@ where E: StdError + Debug + 'static
         Ok(parsed_msg) => {
             if let Some(in_video_path) = parsed_msg.get("video_path").and_then(|v| v.as_str()) {
 
-                // Get history collection
-                let db_client = connect_to_db().await
-                            .map_err(|mongo_err| {
-                                return Err::<E, String>(format!("Cannot connect to MongoDB: {:?}", mongo_err));
-                            }).unwrap();
-
-                let history_collection = get_history_collection(&db_client);
-
-                let video_doc = History {
-                    video_path: in_video_path.to_string()
-                };
-                
-                // Record the "view" in the database
-                history_collection.insert_one(&video_doc).await
-                    .map_err(|mongo_err| {
-                        return Err::<E, String>(format!("Cannot insert video_path to history collection: {:?}", mongo_err));
-                    }).unwrap();
+                // For now, just printing the message that we received
+                println!("{}", in_video_path);
                 
                 delivery.ack(BasicAckOptions::default()).await
                         .expect("Failed to acknowledge message");
@@ -159,30 +144,4 @@ where E: StdError + Debug + 'static
     }
 
     Ok(())
-} 
-
-async fn connect_to_db() -> Result<mongodb::Client, HttpResponse> {
-    let mut client_options = match ClientOptions::parse(crate::get_db_host()).await {
-        Ok(c_options) => c_options,
-        Err(_) => return Err(HttpResponse::InternalServerError().finish())
-    };
-
-    // Set the server_api field of the client_options to Stable API version 1
-    let server_api = ServerApi::builder().version(ServerApiVersion::V1).build();
-    client_options.server_api = Some(server_api);
-
-    // Create new client and connect to the server
-    let client = match mongodb::Client::with_options(client_options) {
-        Ok(client) => client,
-        Err(_) => return Err(HttpResponse::InternalServerError().finish())
-    };
-
-    Ok(client)
-}
-
-fn get_history_collection(db_client: &mongodb::Client) -> mongodb::Collection<History> {
-    let db = db_client.database(crate::get_db_name());
-
-    // This collection will include the videos that have been viewed
-    db.collection::<History>("history")
 }

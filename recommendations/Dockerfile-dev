@@ -1,0 +1,7 @@
+FROM rust:latest
+
+WORKDIR /usr/src/recommendations
+
+CMD cargo install cargo-watch && \
+    cargo build && \
+    cargo watch -x run

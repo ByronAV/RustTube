@@ -4,8 +4,8 @@ use tokio::sync::Mutex;
 
 static PORT: OnceLock<u16> = OnceLock::new();
 static RABBIT: OnceLock<String> = OnceLock::new();
-static DBHOST: OnceLock<String> = OnceLock::new();
-static DBNAME: OnceLock<String> = OnceLock::new();
+// static DBHOST: OnceLock<String> = OnceLock::new();
+// static DBNAME: OnceLock<String> = OnceLock::new();
 
 mod api;
 
@@ -25,19 +25,19 @@ fn get_rabbit() -> &'static str {
     }).as_str()
 }
 
-fn get_db_host() -> &'static str {
-    DBHOST.get_or_init(|| {
-        env::var("DBHOST")
-            .expect("Please specify the variable for the database host in variable DBHOST.")
-    }).as_str()
-}
+// fn get_db_host() -> &'static str {
+//     DBHOST.get_or_init(|| {
+//         env::var("DBHOST")
+//             .expect("Please specify the variable for the database host in variable DBHOST.")
+//     }).as_str()
+// }
 
-fn get_db_name() -> &'static str {
-    DBNAME.get_or_init(|| {
-        env::var("DBNAME")
-            .expect("Please specify the variable for the database name in variable DBNAME.")
-    }).as_str()
-}
+// fn get_db_name() -> &'static str {
+//     DBNAME.get_or_init(|| {
+//         env::var("DBNAME")
+//             .expect("Please specify the variable for the database name in variable DBNAME.")
+//     }).as_str()
+// }
 
 #[tokio::main(flavor="current_thread")]
 async fn main() -> io::Result<()> {
@@ -71,7 +71,7 @@ async fn main() -> io::Result<()> {
     }
 
     HttpServer::new(|| {
-        println!("History online.");
+        println!("Recommendations online.");
         App::new()
     })
     .bind(format!("0.0.0.0:{}", get_port()))?

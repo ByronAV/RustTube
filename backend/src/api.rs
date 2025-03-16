@@ -2,7 +2,7 @@ use actix_web::{get, HttpRequest, HttpResponse};
 use futures::{TryStreamExt, StreamExt};
 use mongodb::{ bson::{doc, oid::ObjectId}, options::{ ClientOptions, ServerApi, ServerApiVersion }};
 use serde::{Serialize, Deserialize};
-use lapin::{options::*, BasicProperties, Channel, Connection, ConnectionProperties};
+use lapin::{options::*, types::FieldTable, BasicProperties, Channel, Connection, ConnectionProperties};
 
 use crate::get_rabbit;
 
@@ -56,8 +56,8 @@ async fn get_video(req: HttpRequest) -> HttpResponse {
                 client_resp.append_header(header);
             }
 
-            match send_viewed_message(&video_record.video_path).await {
-                Ok(_) => println!("Sent `viewed` message to history microservice queue."),
+            match broadcast_viewed_message(&video_record.video_path, "viewed").await {
+                Ok(_) => println!("Sent `viewed` message to 'viewed' exchange."),
                 Err(_) => eprintln!("Failed to send `viewed` message.")
             };
             // Stream the response body
@@ -113,6 +113,8 @@ async fn get_video_record(collection: &mongodb::Collection<Video>, query_str: &O
 
 async fn connect_to_msg_channel() -> Result<Channel, lapin::Error> {
 
+    println!("Connecting to RabbitMQ server from Backend Microservice at {} ...", get_rabbit());
+
     // Connect to RabbitMQ server
     let addr = get_rabbit();
     let conn = Connection::connect(
@@ -126,27 +128,34 @@ async fn connect_to_msg_channel() -> Result<Channel, lapin::Error> {
     conn.create_channel().await
 }
 
-async fn send_viewed_message(video_path: &str) -> Result<(), lapin::Error> {
+async fn broadcast_viewed_message(video_path: &str, exchange_name: &str) -> Result<(), lapin::Error> {
 
-    // We are sending a POST request to the history MS
-    // in order to mark the video as viewed. We need
-    // a json file that contains the video path and 
-    // the content-type header
+    // Here we are broadcasting the `viewed` message
+    // to the `viewed` exchange.
 
     let req = serde_json::json!({
         "video_path": video_path
     });
 
-    println!("Publishing message on 'viewed' queue");
+    println!("Publishing message on '{}' exchange ...", exchange_name);
 
     let msg_channel = match connect_to_msg_channel().await {
         Ok(channel) => channel,
         Err(e) => return Err(e)
     };
 
+    // We first need to check that the exchange exists
+    msg_channel.exchange_declare(exchange_name, lapin::ExchangeKind::Fanout, ExchangeDeclareOptions {
+        passive: true,
+        durable: true,
+        auto_delete: false,
+        internal: false,
+        nowait: false
+    }, FieldTable::default()).await?; // This will throw if it doesn't exist
+
     msg_channel.basic_publish(
+        exchange_name,
         "",
-        "viewed",
         BasicPublishOptions::default(),
         &serde_json::to_vec(&req).expect("Failed to serialize Value json")[..],
         BasicProperties::default()
