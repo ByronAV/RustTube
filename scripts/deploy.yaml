@@ -1,0 +1,333 @@
+# MongoDB StatefulSet
+
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mongodb
+spec:
+  serviceName: mongodb
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongodb
+  template:
+    metadata:
+      labels:
+        app: mongodb
+    spec:
+      containers:
+      - name: mongodb
+        image: mongo:8.0.5
+        ports:
+        - containerPort: 27017
+        volumeMounts:
+        - name: mongodb-data
+          mountPath: /data/db
+  volumeClaimTemplates:
+  - metadata:
+      name: mongodb-data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 1Gi
+
+---
+# MongoDB Service
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb
+spec:
+  selector:
+    app: mongodb
+  ports:
+  - port: 27017
+    targetPort: 27017
+
+---
+# RabbitMQ Deployment
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rabbitmq
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rabbitmq
+  template:
+    metadata:
+      labels:
+        app: rabbitmq
+    spec:
+      containers:
+      - name: rabbitmq
+        image: rabbitmq:3.13.7-management
+        ports:
+        - containerPort: 5672
+        - containerPort: 15672
+
+---
+# RabbitMQ Service
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq
+spec:
+  selector:
+    app: rabbitmq
+  ports:
+  - name: amqp
+    port: 5672
+    targetPort: 5672
+  - name: management
+    port: 15672
+    targetPort: 15672
+
+---
+# Storage Service Deployment
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: storage
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: storage
+  template:
+    metadata:
+      labels:
+        app: storage
+    spec:
+      imagePullSecrets:
+      - name: ghcr-secret
+      containers:
+      - name: storage
+        image: ghcr.io/byronav/rusttube/storage:1
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 80
+        env:
+        - name: PORT
+          value: "80"
+        - name: STORAGE_ACCOUNT_NAME
+          valueFrom:
+            secretKeyRef:
+              name: storage-secrets
+              key: storage-account-name
+        - name: STORAGE_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: storage-secrets
+              key: storage-access-key
+
+---
+# Storage Service
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: storage
+spec:
+  selector:
+    app: storage
+  ports:
+  - port: 80
+    targetPort: 80
+
+---
+# Backend Service Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      imagePullSecrets:
+      - name: ghcr-secret
+      containers:
+      - name: backend
+        image: ghcr.io/byronav/rusttube/backend:1
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 3000
+        env:
+        - name: PORT
+          value: "3000"
+        - name: RABBIT
+          value: "amqp://guest:guest@rabbitmq:5672"
+        - name: DBHOST
+          value: "mongodb://mongodb:27017"
+        - name: DBNAME
+          value: "video-streaming"
+        - name: VIDEO_STORAGE_HOST
+          value: "storage"
+        - name: VIDEO_STORAGE_PORT
+          value: "80"
+        - name: HISTORY_PORT
+          value: "80"
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+
+---
+# Backend Service
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+spec:
+  selector:
+    app: backend
+  ports:
+  - port: 80
+    targetPort: 3000
+
+---
+# History Service Deployment
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: history
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: history
+  template:
+    metadata:
+      labels:
+        app: history
+    spec:
+      imagePullSecrets:
+      - name: ghcr-secret
+      containers:
+      - name: history
+        image: ghcr.io/byronav/rusttube/history:1
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 80
+        env:
+        - name: PORT
+          value: "80"
+        - name: RABBIT
+          value: "amqp://guest:guest@rabbitmq:5672"
+        - name: DBHOST
+          value: "mongodb://mongodb:27017"
+        - name: DBNAME
+          value: "history"
+
+---
+# History Service
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: history
+spec:
+  selector:
+    app: history
+  ports:
+  - port: 80
+    targetPort: 80
+
+---
+# Recommendations Service Deployment
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: recommendations
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: recommendations
+  template:
+    metadata:
+      labels:
+        app: recommendations
+    spec:
+      imagePullSecrets:
+      - name: ghcr-secret
+      containers:
+      - name: recommendations
+        image: ghcr.io/byronav/rusttube/recommendations:1
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 80
+        env:
+        - name: PORT
+          value: "80"
+        - name: RABBIT
+          value: "amqp://guest:guest@rabbitmq:5672"
+        - name: DBHOST
+          value: "mongodb://mongodb:27017"
+        - name: DBNAME
+          value: "history"
+
+---
+# Recommendations Service
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: recommendations
+spec:
+  selector:
+    app: recommendations
+  ports:
+  - port: 80
+    targetPort: 80
+
+---
+# Ingress for exposing backend externally
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: video-streaming-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+  - http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: backend
+            port:
+              number: 80
+
+---
+# Secret for storage credentials
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: storage-secrets
+type: Opaque
+stringData:
+  storage-account-name: ${STORAGE_ACCOUNT_NAME}
+  storage-access-key: ${STORAGE_ACCESS_KEY}
