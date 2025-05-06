@@ -4,8 +4,6 @@ use tokio::sync::Mutex;
 
 static PORT: OnceLock<u16> = OnceLock::new();
 static RABBIT: OnceLock<String> = OnceLock::new();
-// static DBHOST: OnceLock<String> = OnceLock::new();
-// static DBNAME: OnceLock<String> = OnceLock::new();
 
 mod api;
 
@@ -24,20 +22,6 @@ fn get_rabbit() -> &'static str {
             .expect("Please specify the server for the RabbitMQ microservice in variable RABBIT.")
     }).as_str()
 }
-
-// fn get_db_host() -> &'static str {
-//     DBHOST.get_or_init(|| {
-//         env::var("DBHOST")
-//             .expect("Please specify the variable for the database host in variable DBHOST.")
-//     }).as_str()
-// }
-
-// fn get_db_name() -> &'static str {
-//     DBNAME.get_or_init(|| {
-//         env::var("DBNAME")
-//             .expect("Please specify the variable for the database name in variable DBNAME.")
-//     }).as_str()
-// }
 
 #[tokio::main(flavor="current_thread")]
 async fn main() -> io::Result<()> {
@@ -62,17 +46,16 @@ async fn main() -> io::Result<()> {
     let consumer_channel = shared_channel.clone();
 
     // Spawn a task to consume messages
-    if let Err(e) = tokio::spawn(async move {
+    tokio::spawn(async move {
         if let Err(e) = api::consume_viewed_msg(consumer_channel, queue.name().as_str()).await {
             eprintln!("Error consuming `viewed` messages: {}", e);
         }
-    }).await {
-        eprintln!("Error spawning message queue task: {e}");
-    }
+    });
 
     HttpServer::new(|| {
         println!("Recommendations online.");
         App::new()
+            .service(api::health_check)
     })
     .bind(format!("0.0.0.0:{}", get_port()))?
     .run()

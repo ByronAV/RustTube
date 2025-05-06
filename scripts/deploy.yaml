@@ -126,6 +126,13 @@ spec:
             secretKeyRef:
               name: storage-secrets
               key: storage-access-key
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 3
 
 ---
 # Storage Service
@@ -184,8 +191,9 @@ spec:
           httpGet:
             path: /health
             port: 3000
-          initialDelaySeconds: 5
+          initialDelaySeconds: 10
           periodSeconds: 10
+          failureThreshold: 3
 
 ---
 # Backend Service
@@ -235,6 +243,13 @@ spec:
           value: "mongodb://mongodb:27017"
         - name: DBNAME
           value: "history"
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 3
 
 ---
 # History Service
@@ -284,6 +299,13 @@ spec:
           value: "mongodb://mongodb:27017"
         - name: DBNAME
           value: "history"
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 3
 
 ---
 # Recommendations Service
@@ -319,15 +341,3 @@ spec:
             name: backend
             port:
               number: 80
-
----
-# Secret for storage credentials
-
-apiVersion: v1
-kind: Secret
-metadata:
-  name: storage-secrets
-type: Opaque
-stringData:
-  storage-account-name: ${STORAGE_ACCOUNT_NAME}
-  storage-access-key: ${STORAGE_ACCESS_KEY}

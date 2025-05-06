@@ -33,7 +33,6 @@ fn get_storage_access_key() -> &'static str {
     }).as_str()
 }
 
-
 #[tokio::main(flavor="current_thread")]
 async fn main() -> io::Result<()> {
     println!("Serving videos from Azure storage account {}", get_storage_account_name());
@@ -42,6 +41,7 @@ async fn main() -> io::Result<()> {
         println!("Storage Online.");
         App::new()
             .service(api::get_video)
+            .service(api::health_check)
         })
         .bind(format!("0.0.0.0:{}", get_port()))?
         .run()

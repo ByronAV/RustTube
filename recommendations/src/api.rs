@@ -1,4 +1,4 @@
-//use actix_web::HttpResponse;
+use actix_web::{get, HttpResponse};
 use mongodb::{ bson::doc/*, options::{ ClientOptions, ServerApi, ServerApiVersion }*/};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -12,6 +12,11 @@ use crate::get_rabbit;
 #[derive(Serialize, Deserialize)]
 struct History {
     video_path: String
+}
+
+#[get("/health")]
+pub async fn health_check() -> HttpResponse {
+    HttpResponse::Ok().body("OK")
 }
 
 pub async fn connect_to_msg_channel() -> Result<Channel, lapin::Error> {

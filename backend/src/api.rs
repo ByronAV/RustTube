@@ -12,8 +12,13 @@ struct Video {
     video_path: String
 }
 
+#[get("/health")]
+pub async fn health_check() -> HttpResponse {
+    HttpResponse::Ok().body("OK")
+}
+
 #[get("/video")]
-async fn get_video(req: HttpRequest) -> HttpResponse {
+pub async fn get_video(req: HttpRequest) -> HttpResponse {
     // Connect to the DB
     let db_client = match connect_to_db().await {
         Ok(db) => db,

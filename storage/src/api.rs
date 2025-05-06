@@ -4,6 +4,11 @@ use azure_storage::prelude::*;
 use azure_storage_blobs::prelude::*;
 use actix_web::{get, http::header, HttpRequest, HttpResponse};
 
+#[get("/health")]
+pub async fn health_check() -> HttpResponse {
+    HttpResponse::Ok().body("OK")
+}
+
 #[get("/video")]
 pub async fn get_video(req: HttpRequest) -> HttpResponse {
     let video_path = match req.uri().query() {

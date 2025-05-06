@@ -62,17 +62,16 @@ async fn main() -> io::Result<()> {
     let consumer_channel = shared_channel.clone();
 
     // Spawn a task to consume messages
-    if let Err(e) = tokio::spawn(async move {
+    tokio::spawn(async move {
         if let Err(e) = api::consume_viewed_msg(consumer_channel, queue.name().as_str()).await {
             eprintln!("Error consuming `viewed` messages: {}", e);
         }
-    }).await {
-        eprintln!("Error spawning message queue task: {e}");
-    }
+    });
 
     HttpServer::new(|| {
         println!("History online.");
         App::new()
+            .service(api::health_check)
     })
     .bind(format!("0.0.0.0:{}", get_port()))?
     .run()
