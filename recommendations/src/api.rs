@@ -52,7 +52,10 @@ pub async fn assert_exchange(msg_channel: &Channel, exchange_name: &str) -> Resu
 
     let queue = match create_and_bind_queue(&msg_channel, "viewed").await {
         Ok(q) => q,
-        Err(e) => return Err(e)
+        Err(e) => {
+            eprintln!("Error creating and binding queue: {}", e);
+            return Err(e)
+        }
     };
 
     Ok(queue)
@@ -109,7 +112,10 @@ pub async fn consume_viewed_msg(msg_channel: Arc<Mutex<Channel>>, queue_name: &s
             // Get the channel again for this op
             let lock = msg_channel_clone.lock().await;
             if let Err(e) = proccess_viewed_msg::<lapin::Error>(delivery).await {
-                return Err(Box::new(e))
+                return {
+                    eprintln!("Error processing viewed message: {}", e);
+                    Err(Box::new(e))
+                }
             }
             drop(lock);
         }

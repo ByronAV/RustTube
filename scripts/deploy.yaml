@@ -109,7 +109,7 @@ spec:
       - name: ghcr-secret
       containers:
       - name: storage
-        image: ghcr.io/byronav/rusttube/storage:1
+        image: ghcr.io/byronav/rusttube/storage:latest
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 80
@@ -168,7 +168,7 @@ spec:
       - name: ghcr-secret
       containers:
       - name: backend
-        image: ghcr.io/byronav/rusttube/backend:1
+        image: ghcr.io/byronav/rusttube/backend:latest
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 3000
@@ -230,7 +230,7 @@ spec:
       - name: ghcr-secret
       containers:
       - name: history
-        image: ghcr.io/byronav/rusttube/history:1
+        image: ghcr.io/byronav/rusttube/history:latest
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 80
@@ -286,7 +286,7 @@ spec:
       - name: ghcr-secret
       containers:
       - name: recommendations
-        image: ghcr.io/byronav/rusttube/recommendations:1
+        image: ghcr.io/byronav/rusttube/recommendations:latest
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 80

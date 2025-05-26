@@ -22,7 +22,10 @@ pub async fn get_video(req: HttpRequest) -> HttpResponse {
     // Connect to the DB
     let db_client = match connect_to_db().await {
         Ok(db) => db,
-        Err(_) => return HttpResponse::InternalServerError().finish()
+        Err(_) => {
+            eprintln!("Failed to connect to the database.");
+            return HttpResponse::InternalServerError().finish()
+        }
     };
 
     // Retrieve the DB and fetch the `videos` collection
@@ -33,7 +36,10 @@ pub async fn get_video(req: HttpRequest) -> HttpResponse {
     // The URI query part should contain the ID of the video
     let video_record = match get_video_record(&videos_collection, &req.uri().query()).await {
         Ok(record) => record,
-        Err(_) => return HttpResponse::NotFound().finish()
+        Err(_) => {
+            eprintln!("Failed to retrieve video record from the database.");
+            return HttpResponse::NotFound().finish()
+        }
     };
 
     println!("Translated id {} to path {}", req.uri().query().unwrap(), video_record.video_path);
@@ -78,7 +84,10 @@ pub async fn get_video(req: HttpRequest) -> HttpResponse {
 async fn connect_to_db() -> Result<mongodb::Client, HttpResponse> {
     let mut client_options = match ClientOptions::parse(crate::get_db_host()).await {
         Ok(c_options) => c_options,
-        Err(_) => return Err(HttpResponse::InternalServerError().finish())
+        Err(_) => {
+            eprintln!("Failed to get client options for the database at {}", crate::get_db_host());
+            return Err(HttpResponse::InternalServerError().finish())
+        }
     };
 
     // Set the server_api field of the client_options to Stable API version 1
@@ -88,7 +97,10 @@ async fn connect_to_db() -> Result<mongodb::Client, HttpResponse> {
     // Create new client and connect to the server
     let client = match mongodb::Client::with_options(client_options) {
         Ok(client) => client,
-        Err(_) => return Err(HttpResponse::InternalServerError().finish())
+        Err(_) => {
+            eprintln!("Failed to create a MongoDB client with the provided options.");
+            return Err(HttpResponse::InternalServerError().finish())
+        }
     };
 
     Ok(client)
@@ -99,18 +111,30 @@ async fn get_video_record(collection: &mongodb::Collection<Video>, query_str: &O
     let video_id = match query_str {
         Some(s) => match ObjectId::parse_str(s) {
             Ok(id) => id,
-            Err(_) => return Err(HttpResponse::InternalServerError().finish())
+            Err(_) => {
+                eprintln!("Failed to parse video ID from query: {}", s);
+                return Err(HttpResponse::InternalServerError().finish())
+            }
         },
-        None => return Err(HttpResponse::BadRequest().finish())
+        None => {
+            println!("No video ID provided in the query.");
+            return Err(HttpResponse::BadRequest().finish())
+        }
     };
 
     // the record returned should have the same structure as `Video`
     let video_record = match collection.find_one(doc!{"_id": video_id}).await {
         Ok(res) => match res {
             Some(val) => val,
-            None => return Err(HttpResponse::NotFound().finish())
+            None => {
+                eprintln!("No video found with ID: {}", video_id);
+                return Err(HttpResponse::NotFound().finish())
+            }
         },
-        Err(_) => return Err(HttpResponse::InternalServerError().finish())
+        Err(_) => {
+            eprintln!("Failed to fetch video record with ID: {}", video_id);
+            return Err(HttpResponse::InternalServerError().finish())
+        }
     };
 
     Ok(video_record)
@@ -146,7 +170,10 @@ async fn broadcast_viewed_message(video_path: &str, exchange_name: &str) -> Resu
 
     let msg_channel = match connect_to_msg_channel().await {
         Ok(channel) => channel,
-        Err(e) => return Err(e)
+        Err(e) => {
+            eprintln!("Failed to connect to RabbitMQ channel: {}", e);
+            return Err(e)
+        }
     };
 
     // We first need to check that the exchange exists

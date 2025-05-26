@@ -52,7 +52,10 @@ pub async fn assert_exchange(msg_channel: &Channel, exchange_name: &str) -> Resu
 
     let queue = match create_and_bind_queue(&msg_channel, "viewed").await {
         Ok(q) => q,
-        Err(e) => return Err(e)
+        Err(e) => {
+            eprintln!("Error creating and binding queue: {}", e);
+            return Err(e)
+        }
     };
 
     Ok(queue)
@@ -109,7 +112,10 @@ pub async fn consume_viewed_msg(msg_channel: Arc<Mutex<Channel>>, queue_name: &s
             // Get the channel again for this op
             let lock = msg_channel_clone.lock().await;
             if let Err(e) = proccess_viewed_msg::<lapin::Error>(delivery).await {
-                return Err(Box::new(e))
+                return {
+                    eprintln!("Error processing viewed message: {}", e);
+                    Err(Box::new(e))
+                }
             }
             drop(lock);
         }
@@ -169,7 +175,10 @@ where E: StdError + Debug + 'static
 async fn connect_to_db() -> Result<mongodb::Client, HttpResponse> {
     let mut client_options = match ClientOptions::parse(crate::get_db_host()).await {
         Ok(c_options) => c_options,
-        Err(_) => return Err(HttpResponse::InternalServerError().finish())
+        Err(_) => {
+            eprintln!("Failed to get client options for the database at {}", crate::get_db_host());
+            return Err(HttpResponse::InternalServerError().finish())
+        }
     };
 
     // Set the server_api field of the client_options to Stable API version 1
@@ -179,7 +188,10 @@ async fn connect_to_db() -> Result<mongodb::Client, HttpResponse> {
     // Create new client and connect to the server
     let client = match mongodb::Client::with_options(client_options) {
         Ok(client) => client,
-        Err(_) => return Err(HttpResponse::InternalServerError().finish())
+        Err(_) => {
+            eprintln!("Failed to create a MongoDB client with the provided options.");
+            return Err(HttpResponse::InternalServerError().finish())
+        }
     };
 
     Ok(client)
