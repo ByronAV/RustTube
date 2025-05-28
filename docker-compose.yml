@@ -46,7 +46,7 @@ services:
       - RABBIT=amqp://guest:guest@rabbit:5672
       - DBHOST=mongodb://db:27017
       - DBNAME=video-streaming
-      - VIDEO_STORAGE_HOST=video-streaming-storage
+      - VIDEO_STORAGE_HOST=storage
       - VIDEO_STORAGE_PORT=80
       - HISTORY_PORT=80
       - NODE_ENV=development
