@@ -40,11 +40,14 @@ kind: Service
 metadata:
   name: mongodb
 spec:
+  type: NodePort
   selector:
     app: mongodb
   ports:
-  - port: 27017
+  - protocol: TCP
+    port: 27017
     targetPort: 27017
+    nodePort: 30000
 
 ---
 # RabbitMQ Deployment
@@ -80,13 +83,16 @@ metadata:
 spec:
   selector:
     app: rabbitmq
+  type: NodePort
   ports:
   - name: amqp
     port: 5672
     targetPort: 5672
+    nodePort: 30001
   - name: management
     port: 15672
     targetPort: 15672
+    nodePort: 30002
 
 ---
 # Storage Service Deployment
@@ -144,9 +150,12 @@ metadata:
 spec:
   selector:
     app: storage
+  type: NodePort
   ports:
-  - port: 80
+  - protocol: TCP
+    port: 80
     targetPort: 80
+    nodePort: 30003
 
 ---
 # Backend Service Deployment
@@ -205,9 +214,12 @@ metadata:
 spec:
   selector:
     app: backend
+  type: NodePort
   ports:
-  - port: 80
+  - protocol: TCP
+    port: 80
     targetPort: 3000
+    nodePort: 30004
 
 ---
 # History Service Deployment
@@ -261,9 +273,12 @@ metadata:
 spec:
   selector:
     app: history
+  type: NodePort
   ports:
-  - port: 80
+  - protocol: TCP
+    port: 80
     targetPort: 80
+    nodePort: 30005
 
 ---
 # Recommendations Service Deployment
@@ -317,9 +332,12 @@ metadata:
 spec:
   selector:
     app: recommendations
+  type: NodePort
   ports:
-  - port: 80
+  - protocol: TCP
+    port: 80
     targetPort: 80
+    nodePort: 30006
 
 ---
 # Ingress for exposing backend externally
