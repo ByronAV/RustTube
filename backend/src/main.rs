@@ -1,5 +1,7 @@
 use std::{env, io, sync::OnceLock};
-use actix_web::{App, HttpServer};
+use actix_web::{web, App, HttpServer};
+use mongodb::options::{ ClientOptions, ServerApi, ServerApiVersion };
+use lapin::{Connection, ConnectionProperties};
 
 mod api;
 
@@ -60,10 +62,31 @@ fn get_db_name() -> &'static str {
 #[tokio::main(flavor="current_thread")]
 async fn main() -> io::Result<()> {
     println!("Forwarding video requests to {}:{}", get_video_storage_host(), get_video_storage_port());
+    println!("Connecting to MongoDB at {}:{} ...", get_db_host(), get_db_name());
 
-    HttpServer::new(|| {
+    let mut client_options = ClientOptions::parse(get_db_host()).await.expect("Failed to parse MongoDB client options");
+    client_options.server_api = Some(ServerApi::builder().version(ServerApiVersion::V1).build());
+
+    let mongo_client = mongodb::Client::with_options(client_options)
+        .expect("Failed to create MongoDB client with the provided options");
+
+    let mongo_data = web::Data::new(mongo_client);
+
+    println!("Connecting to RabbitMQ at {} ...", get_rabbit());
+    let rabbit_conn = Connection::connect(get_rabbit(), ConnectionProperties::default())
+        .await
+        .expect("Failed to connect to RabbitMQ");
+    let rabbit_channel = rabbit_conn.create_channel()
+        .await
+        .expect("Failed to create RabbitMQ channel");
+
+    let rabbit_data = web::Data::new(rabbit_channel);
+
+    HttpServer::new(move || {
         println!("Backend online.");
         App::new()
+            .app_data(rabbit_data.clone())
+            .app_data(mongo_data.clone())
             .service(api::get_video)
             .service(api::health_check)
     })

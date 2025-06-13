@@ -1,10 +1,8 @@
-use actix_web::{get, HttpRequest, HttpResponse};
+use actix_web::{web, get, HttpRequest, HttpResponse};
 use futures::{TryStreamExt, StreamExt};
-use mongodb::{ bson::{doc, oid::ObjectId}, options::{ ClientOptions, ServerApi, ServerApiVersion }};
+use mongodb::{ Client, bson::{doc, oid::ObjectId}};
 use serde::{Serialize, Deserialize};
-use lapin::{options::*, types::FieldTable, BasicProperties, Channel, Connection, ConnectionProperties};
-
-use crate::get_rabbit;
+use lapin::{options::*, types::FieldTable, BasicProperties, Channel};
 
 #[derive(Serialize, Deserialize)]
 struct Video {
@@ -18,16 +16,7 @@ pub async fn health_check() -> HttpResponse {
 }
 
 #[get("/video")]
-pub async fn get_video(req: HttpRequest) -> HttpResponse {
-    // Connect to the DB
-    let db_client = match connect_to_db().await {
-        Ok(db) => db,
-        Err(_) => {
-            eprintln!("Failed to connect to the database.");
-            return HttpResponse::InternalServerError().finish()
-        }
-    };
-
+pub async fn get_video(req: HttpRequest, db_client: web::Data<Client>, rabbit_channel: web::Data<Channel>) -> HttpResponse {
     // Retrieve the DB and fetch the `videos` collection
     let db = db_client.database(crate::get_db_name());
     // This collection contains path to videos, so `String` arguments
@@ -67,7 +56,7 @@ pub async fn get_video(req: HttpRequest) -> HttpResponse {
                 client_resp.append_header(header);
             }
 
-            match broadcast_viewed_message(&video_record.video_path, "viewed").await {
+            match broadcast_viewed_message(rabbit_channel, &video_record.video_path, "viewed").await {
                 Ok(_) => println!("Sent `viewed` message to 'viewed' exchange."),
                 Err(_) => eprintln!("Failed to send `viewed` message.")
             };
@@ -79,31 +68,6 @@ pub async fn get_video(req: HttpRequest) -> HttpResponse {
         Err(_) => HttpResponse::InternalServerError().body("Failed to connect to video service.")
     }
 
-}
-
-async fn connect_to_db() -> Result<mongodb::Client, HttpResponse> {
-    let mut client_options = match ClientOptions::parse(crate::get_db_host()).await {
-        Ok(c_options) => c_options,
-        Err(_) => {
-            eprintln!("Failed to get client options for the database at {}", crate::get_db_host());
-            return Err(HttpResponse::InternalServerError().finish())
-        }
-    };
-
-    // Set the server_api field of the client_options to Stable API version 1
-    let server_api = ServerApi::builder().version(ServerApiVersion::V1).build();
-    client_options.server_api = Some(server_api);
-
-    // Create new client and connect to the server
-    let client = match mongodb::Client::with_options(client_options) {
-        Ok(client) => client,
-        Err(_) => {
-            eprintln!("Failed to create a MongoDB client with the provided options.");
-            return Err(HttpResponse::InternalServerError().finish())
-        }
-    };
-
-    Ok(client)
 }
 
 async fn get_video_record(collection: &mongodb::Collection<Video>, query_str: &Option<&str>) -> Result<Video, HttpResponse> {
@@ -140,24 +104,7 @@ async fn get_video_record(collection: &mongodb::Collection<Video>, query_str: &O
     Ok(video_record)
 }
 
-async fn connect_to_msg_channel() -> Result<Channel, lapin::Error> {
-
-    println!("Connecting to RabbitMQ server from Backend Microservice at {} ...", get_rabbit());
-
-    // Connect to RabbitMQ server
-    let addr = get_rabbit();
-    let conn = Connection::connect(
-        &addr,
-        ConnectionProperties::default(),
-    ).await?;
-
-    println!("Connected to RabbitMQ from Backend Microservice.");
-
-    // Create a channel
-    conn.create_channel().await
-}
-
-async fn broadcast_viewed_message(video_path: &str, exchange_name: &str) -> Result<(), lapin::Error> {
+async fn broadcast_viewed_message(rabbit_channel: web::Data<Channel>, video_path: &str, exchange_name: &str) -> Result<(), lapin::Error> {
 
     // Here we are broadcasting the `viewed` message
     // to the `viewed` exchange.
@@ -168,16 +115,8 @@ async fn broadcast_viewed_message(video_path: &str, exchange_name: &str) -> Resu
 
     println!("Publishing message on '{}' exchange ...", exchange_name);
 
-    let msg_channel = match connect_to_msg_channel().await {
-        Ok(channel) => channel,
-        Err(e) => {
-            eprintln!("Failed to connect to RabbitMQ channel: {}", e);
-            return Err(e)
-        }
-    };
-
     // We first need to check that the exchange exists
-    msg_channel.exchange_declare(exchange_name, lapin::ExchangeKind::Fanout, ExchangeDeclareOptions {
+    rabbit_channel.exchange_declare(exchange_name, lapin::ExchangeKind::Fanout, ExchangeDeclareOptions {
         passive: true,
         durable: true,
         auto_delete: false,
@@ -185,7 +124,7 @@ async fn broadcast_viewed_message(video_path: &str, exchange_name: &str) -> Resu
         nowait: false
     }, FieldTable::default()).await?; // This will throw if it doesn't exist
 
-    msg_channel.basic_publish(
+    rabbit_channel.basic_publish(
         exchange_name,
         "",
         BasicPublishOptions::default(),

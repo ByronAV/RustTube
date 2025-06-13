@@ -1,4 +1,4 @@
 {
     "_id" : { "$oid": "5d9e690ad76fe06a3d7ae416" },
-    "videoPath" : "file_example_MP4_640_3MG.mp4"
+    "video_path" : "file_example_MP4_640_3MG.mp4"
 }

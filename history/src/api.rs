@@ -1,5 +1,5 @@
-use actix_web::{get, HttpResponse};
-use mongodb::{ bson::doc, options::{ ClientOptions, ServerApi, ServerApiVersion }};
+use actix_web::{web, get, HttpResponse};
+use mongodb::{ Client, bson::doc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use lapin::{message::Delivery, options::*, types::FieldTable, Channel, Connection, ConnectionProperties, Consumer, ExchangeKind, Queue};
@@ -87,7 +87,7 @@ pub async fn create_and_bind_queue(msg_channel: &Channel, exchange_name: &str) -
     Ok(queue)
 }
 
-pub async fn consume_viewed_msg(msg_channel: Arc<Mutex<Channel>>, queue_name: &str) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn consume_viewed_msg(msg_channel: Arc<Mutex<Channel>>, queue_name: &str, db_client: web::Data<Client>) -> Result<(), Box<dyn std::error::Error>> {
     let msg_channel_clone = msg_channel.clone();
     let channel_lock = msg_channel_clone.lock().await;
 
@@ -111,7 +111,7 @@ pub async fn consume_viewed_msg(msg_channel: Arc<Mutex<Channel>>, queue_name: &s
         if let Ok(delivery) = delivery {
             // Get the channel again for this op
             let lock = msg_channel_clone.lock().await;
-            if let Err(e) = proccess_viewed_msg::<lapin::Error>(delivery).await {
+            if let Err(e) = proccess_viewed_msg::<lapin::Error>(delivery, db_client.clone()).await {
                 return {
                     eprintln!("Error processing viewed message: {}", e);
                     Err(Box::new(e))
@@ -124,7 +124,7 @@ pub async fn consume_viewed_msg(msg_channel: Arc<Mutex<Channel>>, queue_name: &s
     Ok(())
 }
 
-async fn proccess_viewed_msg<E>(delivery: Delivery) -> Result<(), E> 
+async fn proccess_viewed_msg<E>(delivery: Delivery, db_client: web::Data<Client>) -> Result<(), E> 
 where E: StdError + Debug + 'static
 {
     println!("Received a `viewed` message");
@@ -134,13 +134,7 @@ where E: StdError + Debug + 'static
         Ok(parsed_msg) => {
             if let Some(in_video_path) = parsed_msg.get("video_path").and_then(|v| v.as_str()) {
 
-                // Get history collection
-                let db_client = connect_to_db().await
-                            .map_err(|mongo_err| {
-                                return Err::<E, String>(format!("Cannot connect to MongoDB: {:?}", mongo_err));
-                            }).unwrap();
-
-                let history_collection = get_history_collection(&db_client);
+                let history_collection = get_history_collection(db_client);
 
                 let video_doc = History {
                     video_path: in_video_path.to_string()
@@ -172,32 +166,7 @@ where E: StdError + Debug + 'static
     Ok(())
 } 
 
-async fn connect_to_db() -> Result<mongodb::Client, HttpResponse> {
-    let mut client_options = match ClientOptions::parse(crate::get_db_host()).await {
-        Ok(c_options) => c_options,
-        Err(_) => {
-            eprintln!("Failed to get client options for the database at {}", crate::get_db_host());
-            return Err(HttpResponse::InternalServerError().finish())
-        }
-    };
-
-    // Set the server_api field of the client_options to Stable API version 1
-    let server_api = ServerApi::builder().version(ServerApiVersion::V1).build();
-    client_options.server_api = Some(server_api);
-
-    // Create new client and connect to the server
-    let client = match mongodb::Client::with_options(client_options) {
-        Ok(client) => client,
-        Err(_) => {
-            eprintln!("Failed to create a MongoDB client with the provided options.");
-            return Err(HttpResponse::InternalServerError().finish())
-        }
-    };
-
-    Ok(client)
-}
-
-fn get_history_collection(db_client: &mongodb::Client) -> mongodb::Collection<History> {
+fn get_history_collection(db_client: web::Data<Client>) -> mongodb::Collection<History> {
     let db = db_client.database(crate::get_db_name());
 
     // This collection will include the videos that have been viewed

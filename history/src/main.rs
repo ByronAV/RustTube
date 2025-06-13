@@ -1,6 +1,7 @@
 use std::{env, io, sync::OnceLock, sync::Arc};
-use actix_web::{App, HttpServer};
+use actix_web::{web, App, HttpServer};
 use tokio::sync::Mutex;
+use mongodb::options::{ ClientOptions, ServerApi, ServerApiVersion };
 
 static PORT: OnceLock<u16> = OnceLock::new();
 static RABBIT: OnceLock<String> = OnceLock::new();
@@ -42,6 +43,16 @@ fn get_db_name() -> &'static str {
 #[tokio::main(flavor="current_thread")]
 async fn main() -> io::Result<()> {
 
+    println!("Connecting to MongoDB at {}:{} ...", get_db_host(), get_db_name());
+
+    let mut client_options = ClientOptions::parse(get_db_host()).await.expect("Failed to parse MongoDB client options");
+    client_options.server_api = Some(ServerApi::builder().version(ServerApiVersion::V1).build());
+
+    let mongo_client = mongodb::Client::with_options(client_options)
+        .expect("Failed to create MongoDB client with the provided options");
+
+    let mongo_data = web::Data::new(mongo_client);
+
     // Create the msg channel and queue
     let msg_channel = api::connect_to_msg_channel().await.unwrap();
     let queue = match api::assert_exchange(&msg_channel, "viewed").await {
@@ -63,7 +74,7 @@ async fn main() -> io::Result<()> {
 
     // Spawn a task to consume messages
     tokio::spawn(async move {
-        if let Err(e) = api::consume_viewed_msg(consumer_channel, queue.name().as_str()).await {
+        if let Err(e) = api::consume_viewed_msg(consumer_channel, queue.name().as_str(), mongo_data.clone()).await {
             eprintln!("Error consuming `viewed` messages: {}", e);
         }
     });

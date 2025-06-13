@@ -116,7 +116,7 @@ spec:
       containers:
       - name: storage
         image: ghcr.io/byronav/rusttube/storage:latest
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         ports:
         - containerPort: 80
         env:
@@ -178,7 +178,7 @@ spec:
       containers:
       - name: backend
         image: ghcr.io/byronav/rusttube/backend:latest
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         ports:
         - containerPort: 3000
         env:
@@ -243,7 +243,7 @@ spec:
       containers:
       - name: history
         image: ghcr.io/byronav/rusttube/history:latest
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         ports:
         - containerPort: 80
         env:
@@ -302,7 +302,7 @@ spec:
       containers:
       - name: recommendations
         image: ghcr.io/byronav/rusttube/recommendations:latest
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         ports:
         - containerPort: 80
         env:
