@@ -4,7 +4,7 @@ use mongodb::{ Client, bson::{doc, oid::ObjectId}};
 use serde::{Serialize, Deserialize};
 use lapin::{options::*, types::FieldTable, BasicProperties, Channel};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 struct Video {
     _id: ObjectId,
     video_path: String
@@ -145,14 +145,14 @@ async fn broadcast_viewed_message(rabbit_channel: web::Data<Channel>, video_path
 #[cfg(test)]
 mod tests {
     use super::*;
-    use actix_rt::test;
     use mockall::predicate::*;
     use mockall::mock;
-    use mongodb::bson::doc;
+    use mongodb::bson::Document;
+    use lapin::{Connection, ConnectionProperties};
 
     mock! {
         Collection {
-            fn find_one<T>(&self, filter: doc) -> Result<Option<Video>, mongodb::error::Error>;
+            fn find_one<T>(&self, filter: Document) -> Result<Option<Video>, mongodb::error::Error>;
         }
     }
 

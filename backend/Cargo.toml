@@ -15,6 +15,7 @@ lto = "fat"
 mockall = "0.11"      # Only for testing
 serial_test = "1.0"   # Only for testing
 pretty_assertions = "1.3"  # Better test assertions
+actix-rt = "2"
 
 [dependencies]
 actix-web = "4.9.0"
