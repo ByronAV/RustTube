@@ -95,3 +95,50 @@ async fn main() -> io::Result<()> {
     .await
 }
 
+
+
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serial_test::serial;
+
+    #[test]
+    #[serial]
+    fn test_get_port() {
+        std::env::set_var("PORT", "8080");
+        assert_eq!(get_port(), 8080);
+    }
+
+    #[test]
+    #[serial]
+    fn test_get_rabbit() {
+        std::env::set_var("RABBIT", "amqp://localhost:5672");
+        assert_eq!(get_rabbit(), "amqp://localhost:5672");
+    }
+
+    #[test]
+    #[serial]
+    fn test_get_video_storage_host() {
+        std::env::set_var("VIDEO_STORAGE_HOST", "localhost");
+        assert_eq!(get_video_storage_host(), "localhost");
+    }
+
+    #[test]
+    #[should_panic(expected = "Please specify the port number")]
+    #[serial]
+    fn test_get_port_missing() {
+        std::env::remove_var("PORT");
+        get_port();
+    }
+
+    #[test]
+    #[serial]
+    fn test_get_db_host_and_name() {
+        std::env::set_var("DBHOST", "mongodb://localhost:27017");
+        std::env::set_var("DBNAME", "rusttube");
+        assert_eq!(get_db_host(), "mongodb://localhost:27017");
+        assert_eq!(get_db_name(), "rusttube");
+    }
+}

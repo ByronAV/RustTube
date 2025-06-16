@@ -135,3 +135,85 @@ async fn broadcast_viewed_message(rabbit_channel: web::Data<Channel>, video_path
 
     Ok(())
 }
+
+
+
+
+
+// ...existing code...
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use actix_rt::test;
+    use mockall::predicate::*;
+    use mockall::mock;
+    use mongodb::bson::doc;
+
+    mock! {
+        Collection {
+            fn find_one<T>(&self, filter: doc) -> Result<Option<Video>, mongodb::error::Error>;
+        }
+    }
+
+    #[actix_rt::test]
+    async fn test_health_check() {
+        let resp = health_check().await;
+        assert_eq!(resp.status(), actix_web::http::StatusCode::OK);
+    }
+
+    #[actix_rt::test]
+    async fn test_get_video_record_success() {
+        let video_id = ObjectId::parse_str("507f1f77bcf86cd799439011").unwrap();
+        let video = Video {
+            _id: video_id,
+            video_path: "test_video.mp4".to_string(),
+        };
+
+        let mut mock_collection = MockCollection::new();
+        mock_collection
+            .expect_find_one()
+            .with(eq(doc! {"_id": video_id}))
+            .returning(move |_| Ok(Some(video.clone())));
+
+        let result = get_video_record(&mock_collection, &Some(&video_id.to_string())).await;
+        assert!(result.is_ok());
+        let video_record = result.unwrap();
+        assert_eq!(video_record.video_path, "test_video.mp4");
+    }
+
+    #[actix_rt::test]
+    async fn test_get_video_record_not_found() {
+        let video_id = ObjectId::parse_str("507f1f77bcf86cd799439011").unwrap();
+        
+        let mut mock_collection = MockCollection::new();
+        mock_collection
+            .expect_find_one()
+            .returning(|_| Ok(None));
+
+        let result = get_video_record(&mock_collection, &Some(&video_id.to_string())).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().status(), actix_web::http::StatusCode::NOT_FOUND);
+    }
+
+    #[actix_rt::test]
+    async fn test_broadcast_viewed_message() {
+        let conn = Connection::connect(
+            "amqp://guest:guest@localhost:5672",
+            ConnectionProperties::default(),
+        )
+        .await
+        .expect("Failed to connect to RabbitMQ");
+        
+        let channel = conn.create_channel().await.unwrap();
+        let channel_data = web::Data::new(channel);
+
+        let result = broadcast_viewed_message(
+            channel_data,
+            "test_video.mp4",
+            "test_exchange"
+        ).await;
+
+        assert!(result.is_ok());
+    }
+}
