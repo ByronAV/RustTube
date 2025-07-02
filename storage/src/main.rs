@@ -41,6 +41,7 @@ async fn main() -> io::Result<()> {
         println!("Storage Online.");
         App::new()
             .service(api::get_video)
+            .service(api::store_video)
             .service(api::health_check)
         })
         .bind(format!("0.0.0.0:{}", get_port()))?

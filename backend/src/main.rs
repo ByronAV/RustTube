@@ -88,6 +88,7 @@ async fn main() -> io::Result<()> {
             .app_data(rabbit_data.clone())
             .app_data(mongo_data.clone())
             .service(api::get_video)
+            .service(api::upload_video)
             .service(api::health_check)
     })
     .bind(format!("0.0.0.0:{}", get_port()))?
