@@ -83,7 +83,7 @@ pub async fn store_video(mut payload: Multipart) -> Result<HttpResponse, Error> 
             eprintln!("Azure upload failed: {:?}", e);
             actix_web::error::ErrorInternalServerError("Upload Failed")
         })?;
-
+    println!("Successfully uploaded video to blob");
     Ok(HttpResponse::Ok().body("Uploaded to Azure"))
 }
 

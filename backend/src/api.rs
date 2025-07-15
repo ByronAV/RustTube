@@ -14,6 +14,7 @@ use crate::get_db_name;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 struct Video {
+    #[serde(skip_serializing_if = "Option::is_none")]
     _id: Option<ObjectId>,
     video_path: String,
     duration: Option<i64>,
@@ -99,6 +100,7 @@ pub async fn upload_video(mut payload: Multipart, db_client: web::Data<MongoClie
     let mut created_at = None;
     let mut user_id = None;
 
+    // Get fields out of request
     while let Some(field_res) = payload.next().await {
         let mut field = field_res?;
         let content_disposition = field.content_disposition();
@@ -129,44 +131,10 @@ pub async fn upload_video(mut payload: Multipart, db_client: web::Data<MongoClie
         }
     }
 
-    // Save metadata to DB
+    // Pass the actual file to storage service to be moved to Azure blob
     println!("Saving video {} to `videos` collection", &filename.as_ref().unwrap());
 
     let video_path = filename.unwrap_or_else(|| Uuid::new_v4().to_string() + ".mp4");
-
-    let duration = duration
-        .and_then(|d| d.parse::<i64>().ok())
-        .unwrap_or(0);
-
-    let created_at = created_at
-        .and_then(|dt| chrono::DateTime::parse_from_rfc3339(&dt).ok())
-        .map(|dt| BsonDateTime::from_system_time(dt.with_timezone(&Utc).into()))
-        .unwrap_or_else(|| BsonDateTime::from_system_time(std::time::SystemTime::now()));
-
-    let user_id = user_id.unwrap_or_else(|| "anonymous".to_string());
-
-    let db_client_clone = db_client.clone();
-    let video_path_clone = video_path.clone();
-    let user_id_clone = user_id.clone();
-
-    // Add to DB asynchronously
-    tokio::spawn(async move {
-        let new_video = Video {
-            _id: None,
-            video_path: video_path_clone,
-            duration: Some(duration),
-            created_at: Some(created_at),
-            user_id: Some(user_id_clone)
-        };
-
-        let collection = db_client_clone
-        .database(get_db_name())
-        .collection("videos");
-
-        if let Err(e) = collection.insert_one(new_video).await {
-            eprintln!("Failed to insert video record: {:?}", e);
-        }
-    });
 
     let form = multipart::Form::new()
         .text("filename", video_path.clone())
@@ -191,6 +159,41 @@ pub async fn upload_video(mut payload: Multipart, db_client: web::Data<MongoClie
 
     match res {
         Ok(resp) if resp.status().is_success() => {
+            let duration = duration
+                .and_then(|d| d.parse::<i64>().ok())
+                .unwrap_or(0);
+
+            let created_at = created_at
+                .and_then(|dt| chrono::DateTime::parse_from_rfc3339(&dt).ok())
+                .map(|dt| BsonDateTime::from_system_time(dt.with_timezone(&Utc).into()))
+                .unwrap_or_else(|| BsonDateTime::from_system_time(std::time::SystemTime::now()));
+
+            let user_id = user_id.unwrap_or_else(|| "anonymous".to_string());
+
+            let db_client_clone = db_client.clone();
+            let video_path_clone = video_path.clone();
+            let user_id_clone = user_id.clone();
+
+            // Add to DB asynchronously
+            tokio::spawn(async move {
+                let new_video = Video {
+                    _id: None,
+                    video_path: video_path_clone,
+                    duration: Some(duration),
+                    created_at: Some(created_at),
+                    user_id: Some(user_id_clone)
+                };
+
+                let collection = db_client_clone
+                .database(get_db_name())
+                .collection("videos");
+                
+                if let Err(e) = collection.insert_one(new_video).await {
+                    eprintln!("Failed to insert video record: {:?}", e);
+                } else {
+                    println!("Successfully stored video to `videos` collection.");
+                }
+            });
             Ok(HttpResponse::Ok().json(doc!{"video_path": video_path}))
         }
         Ok(resp) => {
@@ -265,10 +268,6 @@ async fn broadcast_viewed_message(rabbit_channel: web::Data<Channel>, video_path
 }
 
 
-
-
-
-// ...existing code...
 
 #[cfg(test)]
 mod tests {
