@@ -29,7 +29,7 @@ jobs:
       run: |
 
         OWNER_LOWER=$(echo "${{ env.IMAGE_OWNER }}" | tr '[:upper:]' '[:lower:]')
-        services=("backend" "history" "recommendations" "storage")
+        services=("backend" "history" "storage")
 
         for service in "${services[@]}"; do
           IMAGE_NAME=${{ env.REGISTRY }}/$OWNER_LOWER/rusttube/$service

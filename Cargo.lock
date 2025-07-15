@@ -3857,20 +3857,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "recommendations"
-version = "0.1.0"
-dependencies = [
- "actix-web",
- "cargo-watch",
- "futures-lite 2.6.0",
- "lapin",
- "mongodb",
- "serde",
- "serde_json",
- "tokio",
-]
-
-[[package]]
 name = "redox_syscall"
 version = "0.5.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"

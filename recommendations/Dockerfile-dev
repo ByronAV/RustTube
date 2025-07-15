@@ -1,9 +1,0 @@
-FROM rust:latest
-
-WORKDIR /usr/src/recommendations
-
-# Install cargo-watch once during image build
-RUN cargo install cargo-watch
-
-# Set the default command to use cargo-watch
-CMD ["cargo", "watch", "-x", "run"]

@@ -23,7 +23,6 @@ The repository is organized into the following directories:
 - **`frontend/`**: React application providing the user interface and client-side logic.
 - **`db-fixtures/`**: Contains initial data and scripts for database seeding.
 - **`storage/`**: Manages video file storage and retrieval mechanisms.
-- **`recommendations/`**: Implements algorithms for video recommendations.
 - **`scripts/`**: Utility scripts for setup, deployment, and maintenance tasks.
 - **`docker-compose.yml` & `docker-compose-prod.yml`**: Docker Compose configurations for development and production environments.
 
