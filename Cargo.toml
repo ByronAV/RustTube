@@ -3,6 +3,7 @@ members = [
     "backend",
     "storage",
     "history",
+    "users"
 ]
 
 [workspace.package]

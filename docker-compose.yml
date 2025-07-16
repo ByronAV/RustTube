@@ -74,3 +74,22 @@ services:
       - db
       - rabbit
     restart: "no"
+
+  users:
+    image: users
+    build:
+      context: ./users
+      dockerfile: Dockerfile-dev
+    container_name: users
+    volumes:
+      - ./users:/usr/src/users:z
+    ports:
+      - "4004:80"
+    environment:
+      - PORT=80
+      - DBHOST=mongodb://db:27017
+      - DBNAME=video-streaming
+      - JWT_SECRET=${JWT_SECRET}
+    depends_on:
+      - db
+    restart: "no"
