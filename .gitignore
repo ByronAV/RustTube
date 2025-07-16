@@ -1,2 +1,3 @@
 scripts/secrets.yaml
 target/
+.env

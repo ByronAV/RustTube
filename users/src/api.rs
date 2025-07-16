@@ -29,7 +29,7 @@ struct RegisterPayload {
     password: String
 }
 
-#[post("/register")]
+#[post("/api/register")]
 async fn register(data: web::Data<AppState>, body: web::Json<RegisterPayload>) -> impl Responder {
     // Check if user already exists 
     if data.users.find_one(doc! {"email": &body.email}).await.unwrap().is_some() {
@@ -64,14 +64,16 @@ struct LoginPayload { email: String, password: String }
 #[derive(Debug, Serialize)]
 struct Claims { sub: String, exp: usize, role: String }
 
-#[post("/login")]
+#[post("/api/login")]
 async fn login(data: web::Data<AppState>, body: web::Json<LoginPayload>) -> impl Responder {
     let Some(user) = data.users.find_one(doc! {"email": &body.email}).await.unwrap() else {
+        eprintln!("User does not exist.");
         return HttpResponse::Unauthorized().finish();
     };
 
     let parsed_hash = PasswordHash::new(&user.password_hash).unwrap();
     if Argon2::default().verify_password(body.password.as_bytes(), &parsed_hash).is_err() {
+        eprintln!("Incorrect password");
         return HttpResponse::Unauthorized().finish();
     }
 
@@ -79,6 +81,7 @@ async fn login(data: web::Data<AppState>, body: web::Json<LoginPayload>) -> impl
     let claims = Claims{ sub: user.id.unwrap().to_hex(), exp: exp as usize, role: user.role.unwrap_or("user".into()) };
     let token = encode(&Header::default(), &claims, &data.jwt_key).unwrap();
 
+    println!("User {} logged in successfully", &body.email);
     HttpResponse::Ok().json(doc! {"token": token})
 }
 

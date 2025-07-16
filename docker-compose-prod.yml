@@ -83,3 +83,16 @@ services:
     depends_on:
       - db
     restart: "no"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile-prod
+    container_name: frontend
+    ports:
+       - "4005:80"
+    environment:
+      - VITE_USERS_API_URL=http://localhost:4004
+    depends_on:
+      - users
+    restart: "no"
